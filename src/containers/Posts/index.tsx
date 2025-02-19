@@ -49,8 +49,8 @@ const PostsPage: React.FC<PostListProps> = ({ boardId, boardTitle }) => {
     const [postIdToDelete, setPostIdToDelete] = useState<number | null>(null);
 
     const allPosts = data?.pages.flatMap((page) => page) || [];
-    const todoPosts = allPosts.filter((post) => !post.status);
-    const inProgressPosts = allPosts.filter((post) => post.status);
+    const todoPosts = allPosts.filter((post) => post.analysisStatus === "READY");
+    const inProgressPosts = allPosts.filter((post) => post.analysisStatus !== "READY");
 
 
     const handleDeleteModal = (postId: number) => {

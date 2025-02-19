@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchPost, updatePost } from '@/services/post';
-import { Post, PostRequest } from '@/types/types';
+import { AnalysisStatus, Post, PostRequest } from '@/types/types';
 import PostThumbnail from '@/components/PostThumbnail';
 import * as styles from './postDetails.css';
 import EditPostButton from '@/components/PostActionButton/Edit';
@@ -17,15 +17,13 @@ export const PostDetails: React.FC<PostProps> = ({ boardId, postId }) => {
     const queryClient = useQueryClient();
     const [isEditing, setIsEditing] = useState(false);
     const [selectedPost, setSelectedPost] = useState<Post | null>(null);
-    const cachedPosts = queryClient.getQueryData<Post[]>(["posts", boardId]);
-    const cachedPost = Array.isArray(cachedPosts)
-        ? cachedPosts.find((post) => post.postId === Number(postId))
-        : undefined;
-
     const { data: post, status, isLoading, error } = useQuery({
         queryKey: ["post", boardId, postId],
         queryFn: () => fetchPost({ boardId, postId }),
-        enabled: !cachedPost,
+        refetchInterval: (query) => {
+            const currentStatus = query.state.data?.analysisStatus;
+            return currentStatus === "QUEUED" || currentStatus === "PROCESSING" ? 3000 : false;
+        },
     });
 
     useEffect(() => {
@@ -33,9 +31,15 @@ export const PostDetails: React.FC<PostProps> = ({ boardId, postId }) => {
             queryClient.resetQueries({ queryKey: ["posts", boardId] });
             throw error;
         }
-    }, [status, queryClient, boardId]);
+    }, [status, error, queryClient, boardId]);
 
-    const postData = cachedPost || post;
+    const postData = post;
+
+    useEffect(() => {
+        if (postData?.analysisStatus === "COMPLETED") {
+            queryClient.invalidateQueries({ queryKey: ["contentAnalysis", postId] });
+        }
+    }, [postData?.analysisStatus, postId, queryClient]);
 
     const updateMutation = useMutation({
         mutationFn: (updatedData: PostRequest) => updatePost({ boardId, postId, postData: updatedData }),
@@ -49,10 +53,18 @@ export const PostDetails: React.FC<PostProps> = ({ boardId, postId }) => {
 
     const startMutation = useMutation({
         mutationFn: () => startContentAnalysis(postId),
-        onError: (error:Error) => {alert("분석 시작 실패"); throw error;},
-        throwOnError: true
+        onSuccess: () => {
+            queryClient.setQueryData<Post>(["post", boardId, postId], (current) => current ? {
+                ...current,
+                analysisStatus: "QUEUED",
+                analysisProgress: 0,
+                analysisStatusDetail: "Queued",
+            } : current);
+        },
+        onError: () => { alert("분석 시작 실패"); },
     });
 
+    if (isLoading) return <p className={styles.infoTextStyle}>게시글을 불러오는 중...</p>;
     if (!postData) return <p className={styles.infoTextStyle}>게시글이 존재하지 않습니다.</p>;
 
     const handleEditClick = (post: Post) => {
@@ -65,6 +77,17 @@ export const PostDetails: React.FC<PostProps> = ({ boardId, postId }) => {
 
         updateMutation.mutate({boardId, postTitle, description});
     };
+
+    const statusLabels: Record<AnalysisStatus, string> = {
+        READY: "분석 대기",
+        QUEUED: "요청 대기",
+        PROCESSING: "분석 중",
+        COMPLETED: "분석 완료",
+        FAILED: "분석 실패",
+    };
+
+    const isAnalyzing = postData.analysisStatus === "QUEUED" || postData.analysisStatus === "PROCESSING";
+    const cannotStart = !postData.contentUrl || isAnalyzing || startMutation.isPending;
 
     return (
         <>
@@ -93,13 +116,19 @@ export const PostDetails: React.FC<PostProps> = ({ boardId, postId }) => {
             
             <div className={styles.infoTextStyle}>
                 <p>조회수: {postData.viewCount}</p>
-                <p>상태 : {postData.status}</p>
+                <p>상태: {statusLabels[postData.analysisStatus]} ({postData.analysisProgress}%)</p>
+                {postData.analysisStatusDetail && <p>진행 단계: {postData.analysisStatusDetail}</p>}
                 <p>작성일: {postData.createdAt ? new Date(postData.createdAt).toLocaleDateString() : "작성일 없음"}</p>
-                <p>{postData.status}</p>
             </div>
 
-            <button className={styles.buttonStyle} onClick={() => {startMutation.mutate()}}>
-                {isLoading ? "분석 시작 중" : "분석 시작" }
+            <button className={styles.buttonStyle} disabled={cannotStart} onClick={() => {startMutation.mutate()}}>
+                {!postData.contentUrl
+                    ? "파일을 먼저 업로드해 주세요"
+                    : startMutation.isPending
+                        ? "분석 요청 중"
+                        : isAnalyzing
+                            ? "분석 진행 중"
+                            : "분석 시작"}
             </button>
             </div>
         </>

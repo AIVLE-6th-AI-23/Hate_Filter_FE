@@ -5,14 +5,12 @@ import { Post, PostRequest, Posts } from '@/types/types';
 export const fetchPosts = async ({
     boardId,
     pageParam = null,
-    status = null,
 }: { 
     boardId : number; 
     pageParam?: string | null;
-    status?: string | null;
  }): Promise<Posts> => {
     const response = await api.get<ApiResponse<Posts>>(`/api/${boardId}/posts`, {
-        params: { cursor: pageParam, size: FETCH_SIZE, status : status}
+        params: { cursor: pageParam, size: FETCH_SIZE }
     });
     return response.data.data;
 };

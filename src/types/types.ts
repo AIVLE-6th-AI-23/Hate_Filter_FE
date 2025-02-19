@@ -46,12 +46,16 @@ export interface Post {
     userId : number;
     postTitle : string;
     description : string;
-    thumbnail : string;
+    contentUrl : string | null;
     createdAt : string;
     modifiedAt : string | null;
     viewCount : number;
-    status : string;
+    analysisStatus : AnalysisStatus;
+    analysisProgress : number;
+    analysisStatusDetail : string | null;
 }
+
+export type AnalysisStatus = "READY" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export type Posts = Post[];
 
@@ -74,4 +78,4 @@ export interface ContentAnalysis {
     analysisCategoryResultResponseDto: analysisCategoryResultResponseDto;
 }
 
-export type ContentAnalysisResponse = ContentAnalysis;
+export type ContentAnalysisResponse = ContentAnalysis | null;

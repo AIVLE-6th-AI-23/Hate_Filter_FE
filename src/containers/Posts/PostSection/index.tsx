@@ -60,7 +60,7 @@ const PostSection: React.FC<PostSectionProps> = ({ title, posts, fetchNextPage, 
                                 <div className={styles.postBody}>
                                 <h3 className={styles.postTitle}>{post.postTitle}</h3>
                                 <p className={styles.postDescription}>{post.description}</p>
-                                {inProgress && <p className={styles.postStatus}>상태: {post.status}</p>}
+                                {inProgress && <p className={styles.postStatus}>상태: {post.analysisStatus} ({post.analysisProgress}%)</p>}
                                 <p className={styles.postViewCount}>조회수: {post.viewCount}</p>
                             </div>
                         </div>

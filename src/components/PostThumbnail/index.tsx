@@ -1,9 +1,10 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { updatePostThumbnail } from "@/services/post";
 import { Post } from "@/types/types";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 import * as styles from "./postThumbnail.css";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface PostThumbnailProps {
     post: Post;
@@ -14,17 +15,19 @@ interface PostThumbnailProps {
 const textFileExtensions = [".txt", ".md", ".csv", ".json", ".xml", ".log"];
 
 const PostThumbnail: React.FC<PostThumbnailProps> = ({ post, update }) => {
+    const queryClient = useQueryClient();
     const [filePreview, setFilePreview] = useState<string | null>(null);
     const [textContent, setTextContent] = useState<string | null>(null);
 
-    // post.thumbnail이 존재하면 처리
+    // 저장된 콘텐츠가 존재하면 처리
     useEffect(() => {
-        if (post.thumbnail) {
-            const isTextFile = textFileExtensions.some(ext => post.thumbnail.toLowerCase().endsWith(ext));
+        const contentUrl = post.contentUrl;
+        if (contentUrl) {
+            const isTextFile = textFileExtensions.some(ext => contentUrl.toLowerCase().endsWith(ext));
 
             if (isTextFile) {
                 // 텍스트 파일이면 fetch로 내용을 불러옴
-                fetch(post.thumbnail)
+                fetch(contentUrl)
                     .then(response => response.text())
                     .then(data => {
                         setTextContent(data);
@@ -35,11 +38,14 @@ const PostThumbnail: React.FC<PostThumbnailProps> = ({ post, update }) => {
                     });
             } else {
                 // 이미지 또는 영상이면 미리보기 설정
-                setFilePreview(post.thumbnail);
+                setFilePreview(contentUrl);
                 setTextContent(null);
             }
+        } else {
+            setFilePreview(null);
+            setTextContent(null);
         }
-    }, [post.thumbnail]);
+    }, [post.contentUrl]);
 
     const handleFileUpload = async (file: File) => {
         if (!file) return;
@@ -59,15 +65,27 @@ const PostThumbnail: React.FC<PostThumbnailProps> = ({ post, update }) => {
             setFilePreview(URL.createObjectURL(file));
         }
 
-        await updatePostThumbnail({ boardId: post.boardId, postId: post.postId, file });
-        // window.location.reload(); ❌ 리로드 제거
+        const contentUrl = await updatePostThumbnail({ boardId: post.boardId, postId: post.postId, file });
+        if (!contentUrl) {
+            alert("파일 업로드에 실패했습니다.");
+            return;
+        }
+
+        queryClient.setQueryData<Post>(["post", post.boardId, post.postId], (current) => ({
+            ...(current ?? post),
+            contentUrl,
+            analysisStatus: "READY",
+            analysisProgress: 0,
+            analysisStatusDetail: null,
+        }));
+        queryClient.setQueryData(["contentAnalysis", post.postId], null);
     };
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    const onDrop = (acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
             handleFileUpload(acceptedFiles[0]);
         }
-    }, []);
+    };
 
     const { getRootProps, getInputProps } = useDropzone({
         onDrop,
