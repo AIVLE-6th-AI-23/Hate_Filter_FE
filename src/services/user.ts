@@ -1,10 +1,11 @@
 import { UserResponse, UserInfoRequest } from '@/types/types';
-import { api, ApiResponse } from './api';
+import { api, ApiResponse, clearCsrfToken } from './api';
 
 export const login = async ({
     employeeId,
     password,
 }: { employeeId: string; password: string }): Promise<UserResponse> => {
+    clearCsrfToken();
     const response = await api.post<ApiResponse<UserResponse>>('/api/user/login', {
         employeeId,
         password,
@@ -13,7 +14,9 @@ export const login = async ({
 };
 
 export const logout = async () => {
-    return api.post('/api/user/logout');
+    const response = await api.post('/api/user/logout');
+    clearCsrfToken();
+    return response;
 }
 
 export const sessionCheck = async () : Promise<UserResponse | null> => {

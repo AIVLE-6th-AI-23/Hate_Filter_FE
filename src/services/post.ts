@@ -42,11 +42,7 @@ export const updatePostThumbnail = async ({
     formData.append("file", file);
 
     try {
-        const response = await api.post<ApiResponse<string>>(`/api/${boardId}/posts/${postId}/upload`, formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-            },
-        });
+        const response = await api.post<ApiResponse<string>>(`/api/${boardId}/posts/${postId}/upload`, formData);
 
         return response.data.data;
     } catch (error) {
